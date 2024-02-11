@@ -1,4 +1,4 @@
-package com.springbatch.excel.tutorial.batch;
+package com.springbatch.excel.tutorial.api;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,18 +11,19 @@ import org.springframework.batch.core.repository.JobExecutionAlreadyRunningExcep
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
 
+import java.nio.file.Paths;
 import java.util.Date;
 
 /**
  * @author aek
  */
 @Slf4j
-@Component
+@Service
 @RequiredArgsConstructor
-public class EmployeeJobLauncher {
+public class JobLauncherService {
 
     private final Job job;
 
@@ -31,21 +32,35 @@ public class EmployeeJobLauncher {
     @Value("${employee.excel.processingfolder}")
     private String processingDir;
 
-    // run every 2 min
-    @Scheduled(fixedRate = 120000)
-    void launchFileToJob() throws JobParametersInvalidException, JobExecutionAlreadyRunningException, JobInstanceAlreadyCompleteException, JobRestartException {
+    @Async
+    public void launchFileToJob(String filename) {
         log.info("Starting job");
-        String excelFilePath = String.format("%s/employee.xlsx", processingDir);
+
+        String excelFilePath = Paths.get(processingDir, "employee.xlsx").toString();
+
+        String csvFilePath = filename == null ? Paths.get(processingDir, "employee.csv").toString() : filename;
+
+        log.info("Excel File Path: {}", excelFilePath);
+        log.info("CSV File Path: {}", csvFilePath);
 
         JobParameters params = new JobParametersBuilder()
                 .addLong("jobId", System.currentTimeMillis())
                 .addDate("currentTime", new Date())
                 .addString("excelPath", excelFilePath)
+                .addString("csvFilePath", csvFilePath)
                 .toJobParameters();
 
-        jobLauncher.run(job, params);
-
-        log.info("Stopping job");
+        try {
+            jobLauncher.run(job, params);
+            log.info("Job launched successfully");
+        } catch (JobExecutionAlreadyRunningException |
+                 JobRestartException |
+                 JobInstanceAlreadyCompleteException |
+                 JobParametersInvalidException e) {
+            log.info("Job launch failed with exception: {}", e.getMessage());
+            throw new JobLaunchException(e.getMessage(), e);
+        } finally {
+            log.info("Stopping job");
+        }
     }
-
 }

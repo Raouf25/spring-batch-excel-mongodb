@@ -1,5 +1,15 @@
 version: "2.2"
 services:
+  postgres_db:
+    image: postgres:latest
+    restart: always
+    environment:
+      - POSTGRES_DB=testdb
+      - POSTGRES_USER=dbuser
+      - POSTGRES_PASSWORD=dbpass
+    ports:
+      - "5454:5432"
+
   mongo:
     image: mongo:5.0
     container_name: mongo
